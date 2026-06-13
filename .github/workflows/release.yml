@@ -1,36 +1,55 @@
 name: Build and Release
 
-# 触发条件：推送 tag（如 v0.0.1）时自动触发，也支持手动触发
 on:
   push:
     tags:
-      - 'v*'
+      - 'v*.*.*'
   workflow_dispatch:
 
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      # 1. 检出代码
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # 2. 打包为 ZIP（存储模式，不压缩）
+      # 新增：自动生成 update.json
+      - name: Generate update.json
+        run: |
+          VERSION=${GITHUB_REF#refs/tags/}
+          # 提取 versionCode（去掉 v 和前导0，如 v0.0.1 -> 1）
+          VERSION_CODE=$(echo $VERSION | sed 's/v//' | awk -F. '{print $1*10000 + $2*100 + $3}')
+
+          cat > update.json << EOF
+          {
+            "version": "$VERSION",
+            "versionCode": $VERSION_CODE,
+            "zipUrl": "https://github.com/${{ github.repository }}/releases/download/$VERSION/ipset-$VERSION.zip",
+            "changelog": "https://github.com/${{ github.repository }}/releases/tag/$VERSION"
+          }
+          EOF
+
+      # 将 update.json 提交回仓库
+      - name: Commit update.json
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add update.json
+          git commit -m "ci: 更新 update.json 到 ${{ github.ref_name }}" || echo "No changes to commit"
+          git push
+
       - name: Build Magisk module ZIP
         run: |
-          # 获取 tag 名称作为版本号
           VERSION=${GITHUB_REF#refs/tags/}
           echo "VERSION=$VERSION" >> $GITHUB_ENV
-
-          # 使用 zip 打包，-r 递归，-0 存储模式（不压缩），-x 排除不需要的文件
           zip -r0 ipset-${VERSION}.zip \
             module.prop \
             customize.sh \
             system/ \
             META-INF/ \
+            update.json \
             -x "*.git*"
 
-      # 3. 创建 Release 并上传 ZIP
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
@@ -41,11 +60,6 @@ jobs:
 
             - 自动构建发布
             - 版本号：${{ github.ref_name }}
-
-            ### 安装方法
-            1. 下载 `ipset-${{ github.ref_name }}.zip`
-            2. 在 KernelSU/Magisk 中本地安装该 ZIP 文件
-            3. 重启设备生效
           draft: false
           prerelease: false
           files: ipset-${{ github.ref_name }}.zip
