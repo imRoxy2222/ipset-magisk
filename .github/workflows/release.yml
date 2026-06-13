@@ -12,6 +12,10 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          # 指定检出到默认分支，并且获取完整的提交历史
+          ref: ${{ github.event.repository.default_branch }}
+          fetch-depth: 0
 
       # 新增：自动生成 update.json
       - name: Generate update.json
