@@ -1,0 +1,6 @@
+id=ipset
+name=ipset文件补全
+version=0.0.1
+versionCode=1
+author=Frank2222
+description=ipset文件补全,要求内核支持ipset功能
